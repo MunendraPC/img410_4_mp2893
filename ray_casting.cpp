@@ -257,6 +257,37 @@ bool writeppm(const char* outFile, int Wid, int Height, const uint8_t* pix){
     return true;
 }
 
+static void v3sub(float out[3], const float a[3], const float b[3]){
+    out[0]=a[0]-b[0]; out[1]=a[1]-b[1]; out[2]=a[2]-b[2];
+}
+
+static float v3len(const float a[3]){
+    return std::sqrt(dot3(a,a));
+}
+
+static bool inShadow(const float P[3], const float N[3], const light* L,
+                     sceneData** objects, int objCount)
+{
+    float RoS[3] = { P[0] + N[0]*1e-4f, P[1] + N[1]*1e-4f, P[2] + N[2]*1e-4f };
+
+    float toL[3];
+    v3sub(toL, L->position, P);
+    float distToLight = v3len(toL);
+    normalize3(toL);
+
+    for(int i=0;i<objCount;i++){
+        float tHit;
+        if(objects[i]->type == OBJ_SPHERE){
+            if(hitSphere(RoS, toL, objects[i], tHit) && tHit > 1e-6f && tHit < distToLight)
+                return true;
+        } else if(objects[i]->type == OBJ_PLANE){
+            if(hitPlane(RoS, toL, objects[i], tHit) && tHit > 1e-6f && tHit < distToLight)
+                return true;
+        }
+    }
+    return false;
+}
+
 int main(int argc, char *argv[])
 {
     if(argc != 5){
@@ -300,7 +331,9 @@ int main(int argc, char *argv[])
             normalize3(Rd);
 
             float min_t = std::numeric_limits<float>::infinity();
-            float bestColor[3] = {0.0f, 0.0f, 0.0f};
+            // float bestColor[3] = {0.0f, 0.0f, 0.0f};
+            // bool hit = false;
+            sceneData* hitObj = nullptr;
             bool hit = false;
 
             // intersection by object type
@@ -309,32 +342,98 @@ int main(int argc, char *argv[])
                 if(objects[s]->type == OBJ_SPHERE){
                     if(hitSphere(Ro, Rd, objects[s], tHit) && tHit < min_t){
                         min_t = tHit;
-                        bestColor[0] = objects[s]->c_diff[0];
-                        bestColor[1] = objects[s]->c_diff[1];
-                        bestColor[2] = objects[s]->c_diff[2];
+                        hitObj = objects[s];
                         hit = true;
+
                     }
                 } else if(objects[s]->type == OBJ_PLANE){
                     if(hitPlane(Ro, Rd, objects[s], tHit) && tHit < min_t){
                         min_t = tHit;
-                        bestColor[0] = objects[s]->c_diff[0];
-                        bestColor[1] = objects[s]->c_diff[1];
-                        bestColor[2] = objects[s]->c_diff[2];
+                        hitObj = objects[s];
                         hit = true;
                     }
                 }
             }
 
             int idx = (j*Wid + i) * 3;
-            if(hit){
-                pix[idx+0] = toByte(bestColor[0]);
-                pix[idx+1] = toByte(bestColor[1]);
-                pix[idx+2] = toByte(bestColor[2]);
-            } else {
-                pix[idx+0] = 0;
-                pix[idx+1] = 0;
-                pix[idx+2] = 0;
-            }
+
+if(hit){
+    // hit point P
+    float P[3] = { Ro[0] + min_t*Rd[0], Ro[1] + min_t*Rd[1], Ro[2] + min_t*Rd[2] };
+
+    // normal N
+    float N[3] = {0,0,0};
+    if(hitObj->type == OBJ_SPHERE){
+        float C[3] = { hitObj->position[0], hitObj->position[1], hitObj->position[2] };
+        v3sub(N, P, C);
+        normalize3(N);
+    } else { // plane
+        plane* pp = static_cast<plane*>(hitObj);
+        N[0]=pp->normal[0]; N[1]=pp->normal[1]; N[2]=pp->normal[2];
+        normalize3(N);
+    }
+
+    // view dir V (camera at origin)
+    float V[3] = { -P[0], -P[1], -P[2] };
+    normalize3(V);
+
+    float outColor[3] = {0.0f, 0.0f, 0.0f};
+
+    for(int li=0; li<lightCount; li++){
+        light* L = lights[li];
+
+        // shadows
+        if(inShadow(P, N, L, objects, objCount)) continue;
+
+        // light direction Ldir
+        float Ldir[3];
+        v3sub(Ldir, L->position, P);
+        float d = v3len(Ldir);
+        normalize3(Ldir);
+
+        // radial attenuation
+        float denom = (L->radial_a0 + L->radial_a1*d + L->radial_a2*d*d);
+        float frad = 1.0f;
+        if(std::fabs(denom) > 1e-6f) frad = 1.0f / denom;
+
+        // diffuse
+        float ndotl = dot3(N, Ldir);
+        if(ndotl < 0.0f) ndotl = 0.0f;
+
+        outColor[0] += hitObj->c_diff[0] * L->color[0] * ndotl * frad;
+        outColor[1] += hitObj->c_diff[1] * L->color[1] * ndotl * frad;
+        outColor[2] += hitObj->c_diff[2] * L->color[2] * ndotl * frad;
+
+        // specular (simple Phong, ns fixed at 20 to keep minimal)
+        float minusL[3] = { -Ldir[0], -Ldir[1], -Ldir[2] };
+        float dRN = dot3(minusL, N);
+
+        float R[3] = {
+            minusL[0] - 2.0f*dRN*N[0],
+            minusL[1] - 2.0f*dRN*N[1],
+            minusL[2] - 2.0f*dRN*N[2]
+        };
+        normalize3(R);
+
+        float rdotv = dot3(R, V);
+        if(rdotv < 0.0f) rdotv = 0.0f;
+
+        float spec = std::pow(rdotv, 20.0f);
+
+        outColor[0] += hitObj->c_spec[0] * L->color[0] * spec * frad;
+        outColor[1] += hitObj->c_spec[1] * L->color[1] * spec * frad;
+        outColor[2] += hitObj->c_spec[2] * L->color[2] * spec * frad;
+    }
+
+    pix[idx+0] = toByte(outColor[0]);
+    pix[idx+1] = toByte(outColor[1]);
+    pix[idx+2] = toByte(outColor[2]);
+
+} else {
+    pix[idx+0] = 0;
+    pix[idx+1] = 0;
+    pix[idx+2] = 0;
+}
         }
     }
 
@@ -350,5 +449,8 @@ int main(int argc, char *argv[])
     for(int s=0;s<objCount;s++) delete objects[s];
     delete[] objects;
 
+    for(int i=0;i<lightCount;i++) delete lights[i];
+    delete[] lights;
+    
     return 0;
 }
