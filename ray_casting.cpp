@@ -129,6 +129,7 @@ bool readScene(char file[], sceneData** Objects, sceneData* camera, int* objCoun
             sphere* spherePtr = static_cast<sphere*>(s);
             // defaults if elements are missing
             spherePtr->c_diff[0]=spherePtr->c_diff[1]=spherePtr->c_diff[2]=0.0f;
+            spherePtr->c_spec[0]=spherePtr->c_spec[1]=spherePtr->c_spec[2]=0.0f;
             spherePtr->position[0]=spherePtr->position[1]=spherePtr->position[2]=0.0f;  
             spherePtr->radius = 0.0f;
             spherePtr->type = OBJ_SPHERE;
@@ -166,6 +167,7 @@ bool readScene(char file[], sceneData** Objects, sceneData* camera, int* objCoun
             plane* planePtr = static_cast<plane*>(p);
             // defaults if elements are missing
             planePtr->c_diff[0]=planePtr->c_diff[1]=planePtr->c_diff[2]=0.0f;
+            planePtr->c_spec[0]=planePtr->c_spec[1]=planePtr->c_spec[2]=0.0f;
             planePtr->position[0]=planePtr->position[1]=planePtr->position[2]=0.0f;
             planePtr->normal[0]=planePtr->normal[1]=planePtr->normal[2]=0.0f;
             planePtr->type = OBJ_PLANE;
