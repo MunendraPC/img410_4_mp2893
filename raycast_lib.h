@@ -44,7 +44,8 @@ typedef struct plane : sceneData {
     float normal[3];
 } plane;
 
-typedef struct light : sceneData {
+typedef struct light {
+    float position[3];
     float color[3];
     float radial_a0;
     float radial_a1;

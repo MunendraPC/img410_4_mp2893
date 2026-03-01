@@ -75,7 +75,7 @@ bool hitPlane(const float Ro[3], const float Rd[3], sceneData* p, float &tHit){
 }
 
 // read scene
-bool readScene(char file[], sceneData** Objects, sceneData* camera, int* objCount)
+bool readScene(char file[], light** lights, sceneData** Objects, sceneData* camera, int* objCount, int* lightCount)
 {
     std::ifstream scene(file);
     if(!scene.is_open()){
@@ -197,19 +197,17 @@ bool readScene(char file[], sceneData** Objects, sceneData* camera, int* objCoun
 
         // light
         else if(elem == "light"){
-            if(*objCount >= 128){
+            if(*lightCount >= 128){
                 std::cerr << "Error: too many objects\n";
                 return false;
             }
 
-            sceneData* l = new light();
-            light* lightPtr = static_cast<light*>(l);
+            light* lightPtr = new light;
             // defaults if elements are missing
             lightPtr->color[0]=lightPtr->color[1]=lightPtr->color[2]=1.0f;
             lightPtr->radial_a0=0.0f;
             lightPtr->radial_a1=0.0f;
             lightPtr->radial_a2=0.0f;
-            lightPtr->type = OBJ_LIGHT;
 
             std::string property;
             while(scene >> property){
@@ -231,8 +229,8 @@ bool readScene(char file[], sceneData** Objects, sceneData* camera, int* objCoun
                 if(endObj) break;
             }
 
-            Objects[*objCount] = l;
-            (*objCount)++;
+            lights[*lightCount] = lightPtr;
+            (*lightCount)++;
 
 
         }
@@ -270,10 +268,12 @@ int main(int argc, char *argv[])
     int Height = std::atoi(argv[2]);
 
     sceneData** objects = new sceneData*[128];
+    light** lights = new light*[128];
     int objCount = 0;
+    int lightCount = 0;
     sceneData camera;
 
-    if(!readScene(argv[3], objects, &camera, &objCount)){
+    if(!readScene(argv[3], lights, objects, &camera, &objCount, &lightCount)){
         return 1;
     }
 
