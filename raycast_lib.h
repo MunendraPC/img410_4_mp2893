@@ -46,10 +46,12 @@ typedef struct plane : sceneData {
 typedef struct light {
     float position[3];
     float color[3];
-    float shine;
     float radial_a0;
     float radial_a1;
     float radial_a2;
+    float theta;
+    float angular_a0;
+    float direction[3];
 
 
 } light;

@@ -165,7 +165,7 @@ bool readScene(char file[], light **lights, sceneData **Objects, sceneData *came
             sphere *spherePtr = static_cast<sphere *>(s);
             // defaults if elements are missing
             spherePtr->c_diff[0] = spherePtr->c_diff[1] = spherePtr->c_diff[2] = 0.0f;
-            spherePtr->c_spec[0] = spherePtr->c_spec[1] = spherePtr->c_spec[2] = 0.0f;
+            spherePtr->c_spec[0] = spherePtr->c_spec[1] = spherePtr->c_spec[2] = 20.0f;
             spherePtr->position[0] = spherePtr->position[1] = spherePtr->position[2] = 0.0f;
             spherePtr->radius = 0.0f;
             spherePtr->type = OBJ_SPHERE;
@@ -215,7 +215,7 @@ bool readScene(char file[], light **lights, sceneData **Objects, sceneData *came
             plane *planePtr = static_cast<plane *>(p);
             // defaults if elements are missing
             planePtr->c_diff[0] = planePtr->c_diff[1] = planePtr->c_diff[2] = 0.0f;
-            planePtr->c_spec[0] = planePtr->c_spec[1] = planePtr->c_spec[2] = 0.0f;
+            planePtr->c_spec[0] = planePtr->c_spec[1] = planePtr->c_spec[2] = 20.0f;
             planePtr->position[0] = planePtr->position[1] = planePtr->position[2] = 0.0f;
             planePtr->normal[0] = planePtr->normal[1] = planePtr->normal[2] = 0.0f;
             planePtr->type = OBJ_PLANE;
@@ -268,6 +268,9 @@ bool readScene(char file[], light **lights, sceneData **Objects, sceneData *came
             lightPtr->radial_a0 = 0.0f;
             lightPtr->radial_a1 = 0.0f;
             lightPtr->radial_a2 = 0.0f;
+            lightPtr->angular_a0 = 0.0f;
+            lightPtr->theta = 0.0f;
+            lightPtr->direction[0] = lightPtr->direction[1] = lightPtr->direction[2] = 0.0f;
 
             std::string property;
             while (scene >> property)
@@ -295,6 +298,18 @@ bool readScene(char file[], light **lights, sceneData **Objects, sceneData *came
                 else if (property == "position:")
                 {
                     scene >> lightPtr->position[0] >> lightPtr->position[1] >> lightPtr->position[2];
+                }
+                else if (property == "direction:")
+                {
+                    scene >> lightPtr->direction[0] >> lightPtr->direction[1] >> lightPtr->direction[2];
+                }
+                else if (property == "angular_a0:")
+                {
+                    scene >> lightPtr->angular_a0;
+                }
+                else if (property == "theta:")
+                {
+                    scene >> lightPtr->theta;
                 }
 
                 if (endObj)
@@ -487,7 +502,6 @@ int main(int argc, char *argv[])
                     if (inShadow(P, N, L, objects, objCount))
                         continue;
 
-                    // light direction Ldir
                     float Ldir[3];
                     v3sub(Ldir, L->position, P);
                     float d = v3len(Ldir);
@@ -499,14 +513,32 @@ int main(int argc, char *argv[])
                     if (std::fabs(denom) > 1e-6f)
                         frad = 1.0f / denom;
 
+                    // angular attenuation (spot lights only)
+                    float fang = 1.0f;
+                    if (L->theta > 0.0f)
+                    {
+                        float spotDir[3] = {L->direction[0], L->direction[1], L->direction[2]};
+                        normalize3(spotDir);
+
+                        float cosAngle = dot3(spotDir, Ldir);
+                        // convert 
+                        float cosTheta = std::cos(L->theta * (3.14159265f / 180.0f));
+
+                        if (cosAngle <= cosTheta)
+                            fang = 0.0f; // outside of cone
+                        else
+                            fang = std::pow(cosAngle, L->angular_a0);
+                    }
+
                     // diffuse
                     float ndotl = dot3(N, Ldir);
                     if (ndotl < 0.0f)
                         ndotl = 0.0f;
 
-                    outColor[0] += hitObj->c_diff[0] * L->color[0] * ndotl * frad;
-                    outColor[1] += hitObj->c_diff[1] * L->color[1] * ndotl * frad;
-                    outColor[2] += hitObj->c_diff[2] * L->color[2] * ndotl * frad;
+                    float scale = frad * fang;
+                    outColor[0] += hitObj->c_diff[0] * L->color[0] * ndotl * scale;
+                    outColor[1] += hitObj->c_diff[1] * L->color[1] * ndotl * scale;
+                    outColor[2] += hitObj->c_diff[2] * L->color[2] * ndotl * scale;
 
                     float minusL[3] = {-Ldir[0], -Ldir[1], -Ldir[2]};
                     float dRN = dot3(minusL, N);
@@ -523,9 +555,9 @@ int main(int argc, char *argv[])
 
                     float spec = std::pow(rdotv, 20.0f);
 
-                    outColor[0] += hitObj->c_spec[0] * L->color[0] * spec * frad;
-                    outColor[1] += hitObj->c_spec[1] * L->color[1] * spec * frad;
-                    outColor[2] += hitObj->c_spec[2] * L->color[2] * spec * frad;
+                    outColor[0] += hitObj->c_spec[0] * L->color[0] * spec * scale;
+                    outColor[1] += hitObj->c_spec[1] * L->color[1] * spec * scale;
+                    outColor[2] += hitObj->c_spec[2] * L->color[2] * spec * scale;
                 }
 
                 pix[idx + 0] = toByte(outColor[0]);
