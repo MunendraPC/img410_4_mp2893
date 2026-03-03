@@ -68,7 +68,7 @@ bool hitSphere(const float Ro[3], const float Rd[3], sceneData* s, float &tHit);
 
 bool hitPlane(const float Ro[3], const float Rd[3], sceneData* p, float &tHit);
 
-bool readScene(char file[], sceneData** Objects, sceneData* camera, int* objCount);
+bool readScene(char file[], light **lights, sceneData **Objects, sceneData *camera, int *objCount, int *lightCount);
 
 bool writeppm(const char* outFile, int Wid, int Height, const uint8_t* pix);
 
