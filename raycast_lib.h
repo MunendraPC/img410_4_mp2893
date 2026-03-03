@@ -17,7 +17,6 @@ enum ObjectType {
     OBJ_CAMERA,
     OBJ_SPHERE,
     OBJ_PLANE, 
-    OBJ_LIGHT
 };
 
 
@@ -47,6 +46,7 @@ typedef struct plane : sceneData {
 typedef struct light {
     float position[3];
     float color[3];
+    float shine;
     float radial_a0;
     float radial_a1;
     float radial_a2;
@@ -69,5 +69,11 @@ bool hitPlane(const float Ro[3], const float Rd[3], sceneData* p, float &tHit);
 bool readScene(char file[], sceneData** Objects, sceneData* camera, int* objCount);
 
 bool writeppm(const char* outFile, int Wid, int Height, const uint8_t* pix);
+
+bool inShadow(const float P[3], const float N[3], const light *L, sceneData **objects, int objCount);
+
+float v3len(const float a[3]);
+
+void v3sub(float out[3], const float a[3], const float b[3]);
 
 #endif // RAYCAST_LIB_H
