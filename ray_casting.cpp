@@ -435,8 +435,7 @@ int main(int argc, char *argv[])
             normalize3(Rd);
 
             float min_t = std::numeric_limits<float>::infinity();
-            // float bestColor[3] = {0.0f, 0.0f, 0.0f};
-            // bool hit = false;
+            
             sceneData *hitObj = nullptr;
             bool hit = false;
 
