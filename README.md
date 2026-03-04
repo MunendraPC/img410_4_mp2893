@@ -11,4 +11,4 @@ Example:
 ./raycast 500 500 test.scene output.ppm 
 
 Known Issues:
-No spotlight support. Program compiles and runs without errors .
+Program compiles and runs without errors.
